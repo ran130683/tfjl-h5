@@ -1,20 +1,21 @@
 package apis
 
 import (
-	"bytes"
-	"fmt"
-	"tfjl-h5/core"
-	"tfjl-h5/db"
-	"tfjl-h5/iface"
-	"tfjl-h5/models"
-	"tfjl-h5/net"
-	"tfjl-h5/protocols"
-	"tfjl-h5/utils"
-	"time"
+    "bytes"
+    "fmt"
+    "tfjl-h5/core"
+    "tfjl-h5/db"
+    "tfjl-h5/iface"
+    "tfjl-h5/models"
+    "tfjl-h5/net"
+    "tfjl-h5/protocols"
+    "tfjl-h5/utils"
+    "time"
 
-	jsoniter "github.com/json-iterator/go"
-	"github.com/sirupsen/logrus"
-	"go.mongodb.org/mongo-driver/bson"
+    jsoniter "github.com/json-iterator/go"
+    "github.com/sirupsen/logrus"
+    "go.mongodb.org/mongo-driver/bson"
+    "go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
@@ -41,15 +42,37 @@ type LoginValidateOnlineRouter struct {
 }
 
 func (p *LoginValidateOnlineRouter) Handle(request iface.IRequest) {
-	var cLoginValidateOnline = protocols.C_Login_ValidateOnline{}
-	cLoginValidateOnline.Decode(bytes.NewBuffer(request.GetData()))
-	logrus.Info(cLoginValidateOnline)
+    var cLoginValidateOnline = protocols.C_Login_ValidateOnline{}
+    cLoginValidateOnline.Decode(bytes.NewBuffer(request.GetData()))
+    logrus.Info("Login Request Details: ", cLoginValidateOnline)
+    logrus.Info("Account: ", cLoginValidateOnline.AcountName)
+    logrus.Info("Extra: ", cLoginValidateOnline.Extra)
 
-	role := db.DbManager.FindRoleByAccount(cLoginValidateOnline.AcountName)
-	if role == (models.Role{}) {
-		logrus.Error("role not found")
-		return
-	}
+    role := db.DbManager.FindRoleByAccount(cLoginValidateOnline.AcountName)
+    if role == (models.Role{}) {
+        // 若角色不存在，则自动创建一个最简角色，避免客户端登录失败
+        count, err := db.DbManager.CountRoles(bson.M{})
+        if err != nil {
+            logrus.Error("CountRoles: ", err)
+            return
+        }
+        newRoleID := 10000 + count + 1
+        newRole := models.Role{
+            ID_:      primitive.NewObjectID(),
+            RoleID:   newRoleID,
+            Account:  cLoginValidateOnline.AcountName,
+            StrID:    utils.GetShowID(newRoleID),
+            RoleName: utils.GetRoleName(newRoleID % 10000),
+            Key:      utils.GetRandomKey(),
+            Level:    1,
+        }
+        if err := db.DbManager.CreateRole(newRole); err != nil {
+            logrus.Error("CreateRole(min): ", err)
+            return
+        }
+        role = newRole
+        logrus.Info("auto init minimal role for:", cLoginValidateOnline.AcountName)
+    }
 	player, err := core.NewPlayer(role, request.GetConnection())
 	if err != nil {
 		logrus.Error("NewPlayer error:", err)

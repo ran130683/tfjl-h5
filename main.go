@@ -212,6 +212,8 @@ func main() {
 	})
 	router.Use(sessions.Sessions("tfjlh5session", store))
 
+	// 使用本地文件系统服务静态文件，以便修改即时生效
+	// router.Use(static.Serve("/tfjlh5/", static.LocalFile("static", false)))
 	router.Use(static.Serve("/tfjlh5/", EmbedFolder(staticFS, "static")))
 	// 中间件处理
 	router.Use(func(c *gin.Context) {
@@ -255,6 +257,12 @@ func main() {
 	router.GET("/tfjlh5/delete", Authorize(), delete)
 
 	router.GET("/tfjlh5/", func(c *gin.Context) {
+		// 强制显示登录页
+		if c.Query("force_login") == "true" {
+			c.HTML(http.StatusOK, "login.html", nil)
+			return
+		}
+
 		session := sessions.Default(c)
 		token := session.Get("Authorization")
 		if token == nil || token == "" {
@@ -265,10 +273,13 @@ func main() {
 		user := db.DbManager.FindUserByToken(token.(string))
 		if user == (models.User{}) {
 			c.HTML(http.StatusOK, "login.html", nil)
+			logrus.Info("Not find by token")
 			return
 		}
 
-		c.Redirect(http.StatusMovedPermanently, fmt.Sprintf("/tfjlh5/index?_=%d", time.Now().Unix()))
+		// 已登录用户直接进入游戏页，并附带平台参数，绕过游戏内登录界面
+		logrus.Info("Find user by token")
+		c.Redirect(http.StatusMovedPermanently, fmt.Sprintf("/tfjlh5/index?pid=60132&gid=1&_=%d", time.Now().Unix()))
 	})
 	router.POST("/tfjlh5/login", func(c *gin.Context) {
 		account := c.PostForm("account")
@@ -290,7 +301,8 @@ func main() {
 		session := sessions.Default(c)
 		session.Set("Authorization", token.String())
 		session.Save()
-		c.JSON(http.StatusOK, gin.H{"redirect": "index"})
+		// 网页登录成功后，直接跳转游戏页并附带平台参数，避免在游戏内再次登录
+		c.JSON(http.StatusOK, gin.H{"redirect": "index?pid=60132&gid=1"})
 	})
 	router.GET("/tfjlh5/index", Authorize(), func(c *gin.Context) {
 		// response, err := http.Get("https://mszctest-1300944069.file.myqcloud.com/miyaVideoH5/web-mobile/index.html")
@@ -343,8 +355,8 @@ func main() {
 			AccountName: user.Account,
 			OpenId:      nil,
 			Zone:        0,
-			WebName:     "127.0.0.1:8080/tfjlh5/ws",
-			WebPort:     "443",
+            WebName:     "127.0.0.1:8080/tfjlh5/ws",
+            WebPort:     "8080",
 			WanIp:       "",
 			WanPort:     "",
 			Sign:        "",
@@ -353,7 +365,8 @@ func main() {
 		}
 		c.JSON(http.StatusOK, result)
 	})
-	router.GET("/tfjlh5/ws", Authorize(), net_.WsHandler)
+    // 放宽 WebSocket 鉴权，避免握手阶段因 Cookie/重定向导致连接失败（登录校验在协议内完成）
+    router.GET("/tfjlh5/ws", net_.WsHandler)
 	bindAddress := fmt.Sprintf("%s:%d", configs.GConf.Ip, configs.GConf.Port)
 	srv := &http.Server{
 		Addr:    bindAddress,

@@ -49,6 +49,34 @@
   </div>
 <script src="https://h5sdkapi.tanggugame.com/app/static/js/channel/jquery-3.4.0.min.js"></script>
 <!--<script src="https://h5sdkapi.tanggugame.com//app//static//js//tfjlzc//tg_tfjlzc_mayi.js?v=78070824"></script>-->
+<!-- Hack: 注入本地平台登录数据，绕过游戏页的登录表单 -->
+<script>
+(function(){
+  window.y = window.y || {};
+  var GP = window.y.GamePlatform || {};
+  GP.isPC = function(){ return true; };
+  GP.isAndroid = function(){ return false; };
+  GP.getMiYaVideoType = function(){ return "issueByDance"; };
+  GP.getMiYaAnchorType = function(){ return ""; };
+  GP.setMiYaLoginData = function(d){ window.y._miyaLoginData = d; };
+  GP.getMiYaLoginData = function(){ return window.y._miyaLoginData || null; };
+  GP.pid = 60132;
+  GP.miyaIospid = 60132;
+  window.y.GamePlatform = GP;
+  // 从本地后端获取登录信息并注入
+  fetch('/tfjlh5/pcloginbygroup')
+    .then(function(r){ return r.json(); })
+    .then(function(resp){
+      if(resp && resp.error === 0){
+        window.y.GamePlatform.setMiYaLoginData(resp);
+        console.log('GamePlatform login data injected:', resp);
+      } else {
+        console.warn('Failed to inject login data:', resp);
+      }
+    })
+    .catch(function(err){ console.error('Inject login data error:', err); });
+})();
+</script>
 <script src="src/settings.6761c.js" charset="utf-8"></script>
 
 <script src="main.1d5db.js" charset="utf-8"></script>
@@ -87,8 +115,8 @@
 	  if (r != null) return unescape(r[2]);
 	  return null; //返回参数值
 	}
-	var pid = getUrlParam("pid");
-	var gid = getUrlParam("gid");
+    var pid = getUrlParam("pid") || 60132; // 缺省使用本地平台pid
+    var gid = getUrlParam("gid") || 1;     // 缺省使用分组gid
 	//console.log("_t============",_t);
 	function getHttpUrlParam() {
 		var url = 'https://h5sdkapi.tanggugame.com/app/data/api/ApiGetScript.php';

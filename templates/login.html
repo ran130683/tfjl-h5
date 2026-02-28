@@ -77,17 +77,17 @@
             <input type="password" placeholder="输入密码" name="psw" id="psw" class="required">
             <label></label><br />
 
-            <button id="login-button" onclikc="login">登录</button>
-            <button id="register-button" onclikc="register">创建账号</button>
+            <button id="login-button" type="button">登录</button>
+            <button id="register-button" type="button">创建账号</button>
         </div>
     </div>
 
     <script>
-        $(document).ready(function () {
-            // 为登录按钮添加点击事件
-            $("#login-button").click(function (e) {
-                // 阻止表单提交
-                e.preventDefault();
+            $(document).ready(function () {
+                // 为登录按钮添加点击事件
+                $("#login-button").click(function (e) {
+                    // 阻止表单提交
+                    e.preventDefault();
 
                 // 获取表单中的用户名和密码
                 var account = $("#account");
@@ -123,23 +123,31 @@
                 };
 
                 // 使用$.post方法发起POST请求
-                $.post("http://127.0.0.1:8080/tfjlh5/login", requestData, function (response) {
+                // 使用相对路径避免不同主机名导致的 CORS
+                var $btn = $("#login-button");
+                $btn.prop("disabled", true);
+                $.post("/tfjlh5/login", requestData, function (response) {
                     // 处理响应数据
                     if (response["redirect"] != undefined) {
                         // 重定向到新页面
-                        window.location.href = response["redirect"] + "?_=" + new Date().getTime();
+                        window.location.href = "/tfjlh5/" + response["redirect"] + "?_=" + new Date().getTime();
                     } else if (response["info"] != undefined) {
                         alert(response["info"]);
                     }
                 })
-                    .fail(function (error) {
-                        // 处理错误
-                    });
-            });
-            // 为注册按钮添加点击事件
-            $("#register-button").click(function (e) {
-                // 阻止表单提交
-                e.preventDefault();
+                .fail(function (error) {
+                    // 网络或服务器错误反馈
+                    console.error("登录请求失败:", error);
+                    alert("登录请求失败，请确认服务已启动并检查网络连接。");
+                })
+                .always(function(){
+                    $btn.prop("disabled", false);
+                });
+                });
+                // 为注册按钮添加点击事件
+                $("#register-button").click(function (e) {
+                    // 阻止表单提交
+                    e.preventDefault();
 
                 // 获取表单中的用户名和密码
                 var account = $("#account");
@@ -175,17 +183,24 @@
                 };
 
                 // 使用$.post方法发起POST请求
-                $.post("http://127.0.0.1:8080/tfjlh5/create", requestData, function (response) {
+                // 使用相对路径避免不同主机名导致的 CORS
+                var $regBtn = $("#register-button");
+                $regBtn.prop("disabled", true);
+                $.post("/tfjlh5/create", requestData, function (response) {
                     // 处理响应数据
                     if (response["info"] != undefined) {
                         alert(response["info"]);
                     }
                 })
-                    .fail(function (error) {
-                        // 处理错误
-                    });
+                .fail(function (error) {
+                    console.error("创建账号请求失败:", error);
+                    alert("创建账号失败，请确认服务已启动并检查网络连接。");
+                })
+                .always(function(){
+                    $regBtn.prop("disabled", false);
+                });
+                });
             });
-        });
     </script>
 
 </body>
